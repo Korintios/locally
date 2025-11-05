@@ -1,0 +1,3 @@
+fastapi # El framework web
+uvicorn[standard] # El servidor ASGI
+pydantic # La biblioteca de validación de datos

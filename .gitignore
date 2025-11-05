@@ -1,0 +1,9 @@
+# Frontend dependencies
+frontend/node_modules
+frontend/package-lock.json
+
+# Backend virtual environment
+backend/venv
+
+# Cache files
+__pycache__/
