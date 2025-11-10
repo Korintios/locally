@@ -38,10 +38,81 @@
 	font-style: italic;
 }
 
-.test {
-	font-family: "Afacad", sans-serif;
-}
-
 @theme {
 	--font-afacad: "Afacad", sans-serif;
+}
+
+/* Animaciones para el indicador de "Pensando..." */
+@keyframes bounce {
+	0%,
+	100% {
+		transform: translateY(0);
+	}
+	50% {
+		transform: translateY(-8px);
+	}
+}
+
+.animate-bounce {
+	animation: bounce 1s infinite;
+}
+
+.delay-100 {
+	animation-delay: 0.1s;
+}
+
+.delay-200 {
+	animation-delay: 0.2s;
+}
+
+/* Estilos para Markdown en mensajes de la IA */
+.prose {
+	color: #1f2937;
+}
+
+.prose code {
+	font-family: "Courier New", Courier, monospace;
+}
+
+.prose pre {
+	background-color: #1f2937;
+	border-radius: 0.5rem;
+	padding: 1rem;
+	overflow-x: auto;
+}
+
+.prose pre code {
+	background-color: transparent;
+	color: #f9fafb;
+	padding: 0;
+}
+
+.prose strong {
+	font-weight: 600;
+}
+
+.prose em {
+	font-style: italic;
+}
+
+.prose hr {
+	border-color: #e5e7eb;
+	margin: 1rem 0;
+}
+
+/* Ajustes para tablas en Markdown */
+.prose table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.prose th,
+.prose td {
+	border: 1px solid #d1d5db;
+	padding: 0.5rem 0.75rem;
+}
+
+.prose th {
+	background-color: #f3f4f6;
+	font-weight: 600;
 }
