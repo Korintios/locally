@@ -26,7 +26,7 @@ export default function StatusAPI() {
 		}
 
 		return (
-			<Chip color={isAPIUp ? "primary" : "danger"}>
+			<Chip className="test" color={isAPIUp ? "primary" : "danger"}>
 				{isAPIUp ? "API is Online" : "API is Offline"}
 			</Chip>
 		);

@@ -1,5 +1,6 @@
 import { Button, Input } from "@heroui/react";
-import StatusAPI from "./StatusAPI";
+import StatusAPI from "./components/StatusAPI";
+import ChatBar from "./components/ChatBar/ChatBar";
 import { useState } from "react";
 
 function App() {
@@ -8,7 +9,7 @@ function App() {
 	const [isLoading, setIsLoading] = useState(false);
 
 	async function handleSubmit() {
-    setIsLoading(true);
+		setIsLoading(true);
 		try {
 			// Enviar el prompt al backend
 			const response = await fetch("http://localhost:8000/api/chat", {
@@ -42,7 +43,7 @@ function App() {
 				}
 			}
 
-      setPrompt("");
+			setPrompt("");
 		} catch (error) {
 			// Manejo de errores
 			console.error("Error al enviar el prompt:", error);
@@ -50,26 +51,30 @@ function App() {
 	}
 
 	return (
-		<div className="p-4">
+		<div className="min-h-screen bg-gray-50 p-4 flex flex-col">
+			{/* <StatusAPI /> */}
 			<StatusAPI />
-			<h1>Welcome to Locally Backend</h1>
-			<div className="flex flex-col gap-4 mt-5 w-80">
-				<Input
-					placeholder="¿Que tienes en mente?"
-					value={prompt}
-					onValueChange={setPrompt}
-				/>
-				<Button color="primary" variant="solid" onPress={handleSubmit}>
-					Enviar
-				</Button>
+
+			{/* Área de chat */}
+			<div className="flex-1 max-w-4xl w-full mx-auto mb-4">
+				{response && (
+					<div className="rounded-lg p-4 mb-4">
+						<div className="prose max-w-none">
+							<p className="whitespace-pre-wrap font-afacad">{response}</p>
+						</div>
+					</div>
+				)}
 			</div>
-			{isLoading && <p>Cargando respuesta...</p>}
-			{response && (
-				<div className="mt-5 p-4 border rounded">
-					<h2 className="font-bold mb-2">Respuesta:</h2>
-					<p>{response}</p>
-				</div>
-			)}
+
+			{/* Barra de chat fija en la parte inferior */}
+			<div className="max-w-4xl w-full mx-auto">
+				<ChatBar
+					value={prompt}
+					onChange={setPrompt}
+					onSubmit={handleSubmit}
+					isLoading={isLoading}
+				/>
+			</div>
 		</div>
 	);
 }
