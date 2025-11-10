@@ -68,14 +68,12 @@ export default function ChatBar({ value, onChange, onSubmit, isLoading }) {
 								<Button
 									variant="light"
 									size="sm"
-									className="justify-start h-auto py-1 px-1.5 min-h-0 text-[#94a3b8]"
+									className="justify-start h-auto py-1 px-1.5 font-afacad text-[#94a3b8]"
 									startContent={
-										<SettingsIcon className="w-2.5 h-2.5" />
+										<SettingsIcon/>
 									}
 								>
-									<span className="text-md text-slate-400 font-['Afacad',sans-serif]">
-										Configuración
-									</span>
+									Configuración
 								</Button>
 
 								{/* Divider */}
