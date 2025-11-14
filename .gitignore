@@ -4,6 +4,7 @@ frontend/package-lock.json
 
 # Backend virtual environment
 backend/venv
+backend/.env
 
 # Cache files
 __pycache__/
