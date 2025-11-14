@@ -11,8 +11,8 @@ import {
 	TrelloIcon,
 	GithubIcon,
 	FigmaIcon,
-} from "../Icons";
-import MCPToggle from "./MCPToogle";
+} from "../icons";
+import MCPToggle from "./mcpToggle";
 
 export default function ChatBar({ value, onChange, onSubmit, isLoading }) {
 	const [showMCPMenu, setShowMCPMenu] = useState(false);
