@@ -39,9 +39,9 @@ export default function ChatBar({ value, onChange, onSubmit, isLoading }) {
 	return (
 		<div className="relative w-full">
 			{/* Barra de Chat Principal */}
-			<div className="bg-white rounded-[60px] shadow-md flex items-center px-2 py-2 w-full">
+			<div className="bg-white rounded-[60px] shadow-md flex items-center pr-2 pl-3 py-2 w-full">
 				{/* Botones Izquierdos */}
-				<div className="flex items-center shrink-0">
+				<div className="flex items-center shrink-0 hidden">
 					<Popover
 						placement="top-start"
 						isOpen={showMCPMenu}
