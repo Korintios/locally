@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from pydantic import BaseModel
 import ollama
 import json
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 # Archivos locales
 
@@ -17,12 +17,16 @@ from models.mcpManager import MCPManager
 from constants.systemPrompt import SYSTEM_PROMPT
 from lib.mongodb import MongoDBManager
 
-# Modelo para la petición
+# Modelos para las peticiones
 class ChatRequest(BaseModel):
     message: str
+    conversation_id: Optional[str] = None  # Opcional: si no se provee, se crea una nueva conversación
     
-# Historial global de la conversación
-conversation_history: List[Dict[str, str]] = None
+class ConversationCreate(BaseModel):
+    title: str = "Nueva conversación"
+    
+class ConversationRename(BaseModel):
+    title: str
     
 # Inicializar gestores y bases de datos.
 mcpManager = MCPManager()
@@ -34,12 +38,6 @@ async def lifespan(app: FastAPI):
     # Paso 1: Verificar que los servicios funcionen correctamente.
     mongodbManager.ping()
     await mcpManager.load_mcps_from_config()
-    
-    # Paso 2: Cargar el historial de conversación previo desde MongoDB.
-    global conversation_history
-    conversation_history = mongodbManager.load_history()
-    if conversation_history is None:
-        conversation_history = [{'role': 'system', 'content': SYSTEM_PROMPT}]
     yield
     
 # Crear la aplicación
@@ -64,28 +62,50 @@ def read_root():
 # Endpoint para chat con streaming
 @app.post("/api/chat")
 async def chat_stream(request: ChatRequest):
+    """
+    Endpoint principal para enviar mensajes al modelo y recibir respuestas en streaming.
+    
+    Args:
+        request: ChatRequest con el mensaje y opcionalmente el conversation_id
+        
+    Returns:
+        StreamingResponse: Respuesta en formato SSE (Server-Sent Events)
+    """
     async def generate():
         try:
-            # Paso 1: Agregar mensaje del usuario al historial
-            conversation_history.append({
-                'role': 'user',
-                'content': request.message
-            })
+            # Paso 1: Verificar o crear conversación
+            conversation_id = request.conversation_id
+            if not conversation_id:
+                # Crear nueva conversación si no existe
+                conversation_id = mongodbManager.create_conversation()
+                # Enviar el conversation_id al frontend
+                yield f"data: {json.dumps({'conversation_id': conversation_id})}\n\n"
             
-            # Paso 2: Stream de respuesta desde Ollama con todo el historial
+            # Paso 2: Guardar mensaje del usuario
+            mongodbManager.save_message(conversation_id, 'user', request.message)
+            
+            # Paso 3: Cargar historial de la conversación para contexto
+            messages_history = mongodbManager.get_conversation_messages(conversation_id)
+            
+            # Paso 4: Construir el historial para Ollama (incluir system prompt)
+            conversation_history = [{'role': 'system', 'content': SYSTEM_PROMPT}]
+            for msg in messages_history:
+                conversation_history.append({
+                    'role': msg['role'],
+                    'content': msg['content']
+                })
+            
+            # Paso 5: Stream de respuesta desde Ollama con todo el historial
             stream = ollama.chat(
                 model='gpt-oss:20b',
                 messages=conversation_history,
                 stream=True
             )
             
-            # Paso 2.1: Estructurar la respuesta en formato JSON para la ejecucion de posibles herramientas, si es necesario (si no es necesario se omite este paso).
-            # Paso 2.2: Ejecutar herramientas a través de MCPs.
-            
-            # Paso 3: Acumular la respuesta del asistente
+            # Paso 6: Acumular la respuesta del asistente
             assistant_response = ""
             
-            # Paso 4: Enviar cada chunk al frontend
+            # Paso 7: Enviar cada chunk al frontend
             for chunk in stream:
                 if 'message' in chunk and 'content' in chunk['message']:
                     content = chunk['message']['content']
@@ -93,17 +113,10 @@ async def chat_stream(request: ChatRequest):
                     # Formato SSE (Server-Sent Events)
                     yield f"data: {json.dumps({'content': content})}\n\n"
             
-            # Paso 5: Guardar la respuesta completa del asistente en la base de datos y en el historial.
-            try:
-                mongodbManager.save_history(conversation_history)
-                conversation_history.append({
-                    'role': 'assistant',
-                    'content': assistant_response
-                })
-            except Exception as e:
-                raise Exception(f"Failed to save conversation history: {e}")
+            # Paso 8: Guardar la respuesta completa del asistente
+            mongodbManager.save_message(conversation_id, 'assistant', assistant_response)
             
-            # Paso 6: Señal de finalización
+            # Paso 9: Señal de finalización
             yield f"data: {json.dumps({'done': True})}\n\n"
             
         except Exception as e:
@@ -118,6 +131,87 @@ async def chat_stream(request: ChatRequest):
         }
     )
 
+# ==================== ENDPOINTS DE CONVERSACIONES ====================
+
+@app.get("/api/conversations")
+def get_conversations():
+    """
+    Obtiene la lista de todas las conversaciones ordenadas de más antigua a más reciente.
+    
+    Returns:
+        List: Lista de conversaciones con sus datos
+    """
+    return mongodbManager.get_conversations()
+
+@app.post("/api/conversations")
+def create_conversation(request: ConversationCreate):
+    """
+    Crea una nueva conversación.
+    
+    Args:
+        request: ConversationCreate con el título opcional
+        
+    Returns:
+        Dict: Conversación creada con su ID
+    """
+    conversation_id = mongodbManager.create_conversation(request.title)
+    conversation = mongodbManager.get_conversation_by_id(conversation_id)
+    return conversation
+
+@app.get("/api/conversations/{conversation_id}/messages")
+def get_conversation_messages(conversation_id: str):
+    """
+    Obtiene todos los mensajes de una conversación específica.
+    
+    Args:
+        conversation_id: ID de la conversación
+        
+    Returns:
+        List: Lista de mensajes de la conversación
+    """
+    return mongodbManager.get_conversation_messages(conversation_id)
+
+@app.put("/api/conversations/{conversation_id}")
+def rename_conversation(conversation_id: str, request: ConversationRename):
+    """
+    Renombra una conversación existente.
+    
+    Args:
+        conversation_id: ID de la conversación
+        request: ConversationRename con el nuevo título
+        
+    Returns:
+        Dict: Resultado de la operación
+    """
+    success = mongodbManager.rename_conversation(conversation_id, request.title)
+    if success:
+        return {"success": True, "message": "Conversation renamed successfully"}
+    else:
+        return {"success": False, "message": "Failed to rename conversation"}
+
+@app.delete("/api/conversations/{conversation_id}")
+def delete_conversation(conversation_id: str):
+    """
+    Elimina una conversación y todos sus mensajes.
+    
+    Args:
+        conversation_id: ID de la conversación a eliminar
+        
+    Returns:
+        Dict: Resultado de la operación
+    """
+    success = mongodbManager.delete_conversation(conversation_id)
+    if success:
+        return {"success": True, "message": "Conversation deleted successfully"}
+    else:
+        return {"success": False, "message": "Failed to delete conversation"}
+
+# ==================== ENDPOINT LEGACY ====================
+
 @app.get("/api/history")
 def get_history():
-    return mongodbManager.load_history()
+    """
+    Endpoint legacy: Devuelve todas las conversaciones.
+    Se mantiene por compatibilidad pero se recomienda usar /api/conversations
+    """
+    return mongodbManager.get_conversations()
