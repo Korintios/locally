@@ -75,19 +75,52 @@ async def chat_stream(request: ChatRequest):
         try:
             # Paso 1: Verificar o crear conversación
             conversation_id = request.conversation_id
+            is_new_conversation = False
+            
             if not conversation_id:
                 # Crear nueva conversación si no existe
                 conversation_id = mongodbManager.create_conversation()
+                is_new_conversation = True
                 # Enviar el conversation_id al frontend
                 yield f"data: {json.dumps({'conversation_id': conversation_id})}\n\n"
             
             # Paso 2: Guardar mensaje del usuario
             mongodbManager.save_message(conversation_id, 'user', request.message)
             
-            # Paso 3: Cargar historial de la conversación para contexto
+            # Paso 3: Si es una conversación nueva, generar el título ANTES de responder
+            if is_new_conversation:
+                try:
+                    # Generar título basado en el primer mensaje del usuario
+                    title_prompt = f"Genera un título corto y descriptivo (máximo 5 palabras) para una conversación que comienza con este mensaje del usuario: '{request.message}'. Responde SOLO con el título, sin comillas ni puntuación extra."
+                    
+                    title_response = ollama.chat(
+                        model='gpt-oss:20b',
+                        messages=[
+                            {'role': 'system', 'content': 'Eres un asistente que genera títulos concisos para conversaciones. Responde únicamente con el título, sin explicaciones adicionales.'},
+                            {'role': 'user', 'content': title_prompt}
+                        ],
+                        stream=False
+                    )
+                    
+                    # Extraer y limpiar el título
+                    generated_title = title_response['message']['content'].strip()
+                    # Limitar a 60 caracteres y eliminar comillas si las tiene
+                    generated_title = generated_title.strip('"\'').strip()[:60]
+                    
+                    # Actualizar el título de la conversación
+                    mongodbManager.rename_conversation(conversation_id, generated_title)
+                    
+                    # Notificar al frontend sobre el nuevo título
+                    yield f"data: {json.dumps({'title': generated_title})}\n\n"
+                    
+                except Exception as title_error:
+                    # Si falla la generación del título, no afecta el flujo principal
+                    print(f"\033[93mTITLE GENERATION: \033[0m    Failed to generate title: {title_error}")
+            
+            # Paso 4: Cargar historial de la conversación para contexto
             messages_history = mongodbManager.get_conversation_messages(conversation_id)
             
-            # Paso 4: Construir el historial para Ollama (incluir system prompt)
+            # Paso 5: Construir el historial para Ollama (incluir system prompt)
             conversation_history = [{'role': 'system', 'content': SYSTEM_PROMPT}]
             for msg in messages_history:
                 conversation_history.append({
@@ -95,17 +128,17 @@ async def chat_stream(request: ChatRequest):
                     'content': msg['content']
                 })
             
-            # Paso 5: Stream de respuesta desde Ollama con todo el historial
+            # Paso 6: Stream de respuesta desde Ollama con todo el historial
             stream = ollama.chat(
                 model='gpt-oss:20b',
                 messages=conversation_history,
                 stream=True
             )
             
-            # Paso 6: Acumular la respuesta del asistente
+            # Paso 7: Acumular la respuesta del asistente
             assistant_response = ""
             
-            # Paso 7: Enviar cada chunk al frontend
+            # Paso 8: Enviar cada chunk al frontend
             for chunk in stream:
                 if 'message' in chunk and 'content' in chunk['message']:
                     content = chunk['message']['content']
@@ -113,10 +146,10 @@ async def chat_stream(request: ChatRequest):
                     # Formato SSE (Server-Sent Events)
                     yield f"data: {json.dumps({'content': content})}\n\n"
             
-            # Paso 8: Guardar la respuesta completa del asistente
+            # Paso 9: Guardar la respuesta completa del asistente
             mongodbManager.save_message(conversation_id, 'assistant', assistant_response)
             
-            # Paso 9: Señal de finalización
+            # Paso 10: Señal de finalización
             yield f"data: {json.dumps({'done': True})}\n\n"
             
         except Exception as e:

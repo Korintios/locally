@@ -107,6 +107,34 @@ function App() {
 	};
 
 	/**
+	 * Maneja cuando se genera un título automáticamente para una conversación nueva.
+	 */
+	const handleTitleGenerated = (conversationId, title) => {
+		// Actualizar el título en la lista de conversaciones localmente
+		setConversations((prev) =>
+			prev.map((conv) =>
+				conv._id === conversationId
+					? { ...conv, title: title, updated_at: new Date().toISOString() }
+					: conv
+			)
+		);
+	};
+
+	/**
+	 * Maneja cuando se crea una nueva conversación (antes de generar el título).
+	 */
+	const handleConversationCreated = (conversationId) => {
+		// Agregar la conversación inmediatamente a la lista con título temporal
+		const newConversation = {
+			_id: conversationId,
+			title: "Nueva conversación",
+			created_at: new Date().toISOString(),
+			updated_at: new Date().toISOString(),
+		};
+		setConversations((prev) => [...prev, newConversation]);
+	};
+
+	/**
 	 * Maneja el envío de un mensaje.
 	 * Si no hay conversación actual, se creará una nueva automáticamente.
 	 */
@@ -121,26 +149,22 @@ function App() {
 
 		// Agregar mensaje del usuario al estado local
 		setMessages((prev) => [...prev, userMessage]);
+		const userPrompt = prompt; // Guardar el prompt antes de limpiarlo
 		setPrompt("");
 		setIsLoading(true);
 
 		// Enviar mensaje al backend
 		const resultConversationId = await saveMessagesInAPI(
-			prompt,
+			userPrompt,
 			currentConversationId,
 			setMessages,
 			setIsLoading,
-			setCurrentConversationId
+			setCurrentConversationId,
+			handleTitleGenerated,
+			handleConversationCreated
 		);
 
-		// Si se creó una nueva conversación, actualizar la lista
-		if (
-			resultConversationId &&
-			resultConversationId !== currentConversationId
-		) {
-			const convs = await fetchConversations();
-			setConversations(convs);
-		}
+		// Si se creó una nueva conversación, no es necesario recargar ya que se agregó localmente
 	}
 
 	return (

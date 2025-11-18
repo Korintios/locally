@@ -164,6 +164,8 @@ export const fetchHistory = async () => {
  * @param {Function} setMessages - Función para actualizar el estado de mensajes
  * @param {Function} setIsLoading - Función para actualizar el estado de carga
  * @param {Function} setCurrentConversationId - Función para actualizar el conversation_id actual
+ * @param {Function} onTitleGenerated - Callback cuando se genera un nuevo título (opcional)
+ * @param {Function} onConversationCreated - Callback cuando se crea una nueva conversación (opcional)
  * @returns {Promise<string|null>} ID de la conversación o null si hubo error
  */
 export const saveMessagesInAPI = async (
@@ -171,7 +173,9 @@ export const saveMessagesInAPI = async (
 	conversationId,
 	setMessages,
 	setIsLoading,
-	setCurrentConversationId
+	setCurrentConversationId,
+	onTitleGenerated = null,
+	onConversationCreated = null
 ) => {
 	try {
 		// Enviar el prompt al backend con el conversation_id
@@ -191,6 +195,7 @@ export const saveMessagesInAPI = async (
 
 		let assistantResponse = "";
 		let newConversationId = conversationId;
+		let generatedTitle = null;
 		const assistantMessage = {
 			role: "assistant",
 			content: "",
@@ -215,6 +220,19 @@ export const saveMessagesInAPI = async (
 					if (data.conversation_id) {
 						newConversationId = data.conversation_id;
 						setCurrentConversationId(newConversationId);
+
+						// Notificar que se creó una nueva conversación (inmediatamente)
+						if (onConversationCreated && !conversationId) {
+							onConversationCreated(newConversationId);
+						}
+					}
+
+					// Si el backend devuelve un título generado
+					if (data.title) {
+						generatedTitle = data.title;
+						if (onTitleGenerated) {
+							onTitleGenerated(newConversationId, generatedTitle);
+						}
 					}
 
 					if (data.content) {
